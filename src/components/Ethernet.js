@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import IPv4 from "./IPv4";
+import ARP from "./ARP";
 
 const Ethernet = ({ input, setInput }) => {
   const [destinationAddress, setDestinationAddress] = useState("");
   const [sourceAddress, setSourceAddress] = useState("");
   const [decoded, setDecoded] = useState(false);
   const [nextProtocol, setNextProtocol] = useState(null);
+  const [ipv4Data, setIpv4Data] = useState("");
+  const [ARPData, setARPData] = useState("");
 
   const handleDecode = () => {
     const sanitizedInput = input.replace(/\s+/g, "");
-    console.log("Sanitized Input:", sanitizedInput); // Debug log
 
     if (sanitizedInput.length >= 28) {
       const destination = sanitizedInput
@@ -20,8 +22,6 @@ const Ethernet = ({ input, setInput }) => {
         .slice(12, 24)
         .match(/.{1,2}/g)
         .join(":");
-      console.log("Destination Address:", destination); // Debug log
-      console.log("Source Address:", source); // Debug log
 
       setDestinationAddress(destination);
       setSourceAddress(source);
@@ -29,9 +29,11 @@ const Ethernet = ({ input, setInput }) => {
       switch (protocolCode) {
         case "0800":
           setNextProtocol("IPv4");
+          setIpv4Data(sanitizedInput.slice(28)); // Set IPv4 data
           break;
         case "0806":
           setNextProtocol("ARP");
+          setARPData(sanitizedInput.slice(28));
           break;
         case "8100":
           setNextProtocol("VLAN");
@@ -44,15 +46,20 @@ const Ethernet = ({ input, setInput }) => {
       }
       setDecoded(true);
     } else {
-      console.error("Input is too short to decode addresses"); // Error log
+      console.error("Input is too short to decode addresses");
     }
   };
 
   const handleEncode = () => {
     const newDestination = destinationAddress.replace(/:/g, "");
     const newSource = sourceAddress.replace(/:/g, "");
-    const remainingData = input.replace(/\s+/g, "").slice(24);
-    const encodedData = newDestination + newSource + remainingData;
+    let encodedData = newDestination + newSource;
+
+    if (nextProtocol === "IPv4") {
+      // Encode IPv4 data
+      const ipv4Encoded = ipv4Data.replace(/\s+/g, "");
+      encodedData = encodedData + "0800" + ipv4Encoded;
+    }
     const formattedData = encodedData.match(/.{1,2}/g).join(" "); // Insert spaces after every two characters
     setInput(formattedData);
   };
@@ -67,7 +74,7 @@ const Ethernet = ({ input, setInput }) => {
           className="w-full p-2 border rounded-lg text-black bg-gray-100"
           rows="5"
           cols="80"
-          placeholder="You can copy paste here your packet data (including ethernet header) in hex format. HPD can parse various hex dump formats"
+          placeholder="Paste your packet data here..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
@@ -96,23 +103,25 @@ const Ethernet = ({ input, setInput }) => {
           </div>
           {nextProtocol === "IPv4" && (
             <IPv4
-              data={input}
-              setData={setInput} // Pass a function to update ipv4Data
-              handleEncode={handleEncode} // Pass handleEncode to IPv4 component
+              data={ipv4Data} // Pass IPv4 data
+              setData={setIpv4Data} // Pass function to update IPv4 data
             />
+          )}
+          {nextProtocol === "ARP" && (
+            <ARP data={ARPData} setData={setARPData} />
           )}
         </div>
       )}
       <div className="flex justify-center items-baseline">
         <button
           onClick={handleDecode}
-          className="px-4 py-2 bg-red-500 text-white rounded-lg m-3"
+          className="px-4 py-2 bg-red-500 text-white rounded-lg m-3 transition duration-300 ease-in-out transform hover:bg-green-600 hover:shadow-lg hover:scale-105 hover:text-gray-200"
         >
           Decode
         </button>
         <button
           onClick={handleEncode}
-          className="px-4 py-2 bg-green-500 text-white rounded-lg m-3"
+          className="px-4 py-2 bg-green-500 text-white rounded-lg m-3 transition duration-300 ease-in-out transform hover:bg-green-600 hover:shadow-lg hover:scale-105 hover:text-gray-200"
         >
           Encode
         </button>
